@@ -5,11 +5,11 @@
 ### Assignments
 Assignments during the term can be find below.<br>
 
-**Assignment 1:**  A report consists o some *R related videos and posts* by using Rmarkdown. 
+**Assignment 0:**  A report consists o some *R related videos and posts* by using Rmarkdown. 
 
-- R Videos and Posts Review: [html]()<br>
+- R Videos and Posts Review: [html](Assignment-0.html)<br>
 
-**Assignment 2:** 
+**Assignment 2:** <br>
 **Assignment 3:** 
   
 
