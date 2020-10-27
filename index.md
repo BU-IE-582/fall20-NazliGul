@@ -9,7 +9,7 @@ Assignments during the term can be find below.<br>
 
 - R Videos and Posts Review: [html](Assignment-0.html)<br>
 
-**Assignment 2:** 
+**Assignment 2:** <br>
 **Assignment 3:** 
   
 
