@@ -9,7 +9,10 @@ Assignments during the term can be find below.<br>
 
 - R Videos and Posts Review: [html](Assignment-0.html)<br>
 
-**Assignment 1:** <br>
+**Assignment 1:** A report consists of data manipulation for online bet websites, mainly examining Odds Bias. 
+
+- Sports Forecasting: [html](Assignment-1.html)
+
 **Assignment 2:** 
   
 
