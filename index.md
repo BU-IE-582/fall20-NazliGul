@@ -11,7 +11,7 @@ Assignments during the term can be find below.<br>
 
 **Assignment 1:** A report consists of data manipulation for online bet websites, mainly examining Odds Bias. 
 
-- Sports Forecasting: [html](Assignment-1.html)
+- Sports Forecasting: [html](Assignment1-582.html)
 
 **Assignment 2:** 
   
