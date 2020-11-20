@@ -1,0 +1,749 @@
+---
+title: "Assignment 1: Sport Forecast"
+author: "Nazlı Gül"
+date: "11/19/2020"
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+    theme: united
+    highlight: tango
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, fig.align = "center")
+```
+
+```{r , message=FALSE, warning=FALSE}
+library(tidyverse)
+library(kableExtra)
+library(RColorBrewer)
+library(ggExtra)
+library(data.table)
+library(patchwork)
+```
+
+<style>
+#TOC {
+ color: 
+ font-family: Calibri;
+ background-color:
+ border-color: darkred;
+}
+#header {
+ color: darkred;
+ font-family: Calibri;
+ background-color:
+}
+body {
+ font-family: Calibri;
+ }
+ 
+</style> 
+
+# Data Manipulation for English Premier League
+
+## 1. Introduction
+
+The English Premier League is the top level of the English football league system. Contested by 20 clubs, it operates on a system of promotion and relegation with the English Football League. Seasons run from August to May with each team playing 38 matches (playing all 19 other teams both home and away). One significant feature of the Premier League in the 2000s was the dominance of the so-called *"Top Four"* clubs: *Arsenal, Chelsea, Liverpool* and *Manchester United*.The years following 2009 marked a shift in the structure of the "Top Four" with *Tottenham Hotspur* and *Manchester City* both breaking into the top four places on a regular basis, turning the "Top Four" into the "Big Six"[1].
+
+Sports forecasting is important for many agents such as sports fans, team managers, sponsors, the media and the growing number of punters who bet on online platforms[2]. There are plenty of different scenarios that one can bet.If gambling had been a fair game, the odds should correspond to the estimated probability for the outcome they represent. However, in reality this is not the case. If we take the inverse and sums up the probabilities for all the outcomes in one game, we normally expect the sum to be equal to one, but for the bets, the sum is more than 1. The reason of this is that there is a margin added by the bookmakers. This brings the following conclusion on mind:<br>
+*If one could formulate a method that predicts the outcomes better, one could make money from betting*[3].
+
+```{r, echo=FALSE}
+url <- "https://i2.wp.com/bettingtips.world/wp-content/uploads/2020/03/English-Premier-League-1992-To-2020.jpg?resize=768%2C353&ssl=1"
+
+```
+
+<center>
+
+![](`r url`){#id .class width=610 height=250px}
+
+</center>
+
+## 2. Tasks
+
+In this assignment, we will examine the sports forecasting for the English Premier League data of 2018-2019, 2019-2020, and 2020-2021(played games) seasons[5]. The variable definitions can be found in the link presented in the reference part[4].
+
+In a football game there are three possible outcomes:
+
+1. Home team wins. (H)
+2. The match ends in a draw. (D)
+3. Away team wins. (A)
+
+```{r message=FALSE, warning=FALSE}
+Season20_21<-fread("2020-2021.csv", select = c(2, 4:42))
+Season19_20<-fread("2019-2020.csv", select = c(2, 4:42))
+Season18_19<-fread("2018-2019.csv", select = 2:41)
+EPL<-rbind(Season20_21, Season19_20, Season18_19)
+```
+
+### 2.1. Task 1
+
+#### 2.1.1. Histogram Diagrams
+
+Histograms help us to examine the distribution of a given dataset. In this subtask, firstly histograms of the number of goals scored by home team and by away team are constructed. Later, the difference between the number of goals scored by home team and by away team is presented. As a first impression obtained from the histograms, it can be said that:
+The number of goals scored by home team is distributed as Poisson distirbution.<br>
+The number of goals scored by away team is distributed as Poisson distirbution.<br>
+The difference of goals is distributed as Normal distirbution.<br>
+
+
+```{r message=FALSE, warning=FALSE, results = 'hide'}
+a<- EPL %>%
+  ggplot(., aes(x = as.factor(FTHG), fill= cut(FTHG,10))) +
+  geom_histogram(stat = "count") +
+  theme_minimal()  + 
+  theme(legend.position = "none") +
+  scale_fill_brewer(palette = "Greens")+
+  labs(x = "Home Goals",
+       y = "Number of Games")
+
+b<-EPL %>%
+  ggplot(., aes(x = as.factor(FTAG),  fill= cut(FTAG,10) )) +
+  geom_histogram(stat = "count") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_fill_brewer(palette = "Reds")+
+  labs(x = "Away Goals",
+       y = "Number of Games")
+
+c<-EPL %>%
+  ggplot(., aes(x = as.factor(FTHG - FTAG),  fill= cut(FTHG-FTAG,10) )) +
+  geom_histogram(stat = "count") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_fill_brewer(palette = "Blues")+
+  labs(x = "Home Goals - Away Goals",
+       y = "Number of Games")
+
+(a+ b +c)+
+  plot_annotation(title = "Histogram Diagrams",theme = 
+  theme(plot.title = element_text(size = 15, face = "bold")))
+
+```
+
+#### 2.1.2. Probability Distribution
+
+A common way to model a football game is to assume that the expected number of goals a team will make is given by a Poisson distribution[3]. In order to examine this, we can add theoretical Poisson distribution lines as below.
+
+```{r  message=FALSE, warning=FALSE , results = 'hide'}
+xfit <- seq(min(EPL$FTHG), max(EPL$FTHG), by = 1)
+yfit <- dpois(xfit, lambda = mean(EPL$FTHG))
+pois <- data.table(x = xfit, y = yfit)
+
+d <- ggplot() +
+  geom_histogram(aes(x = as.factor(FTHG), fill=cut(FTHG,10)), stat = "count", data = EPL) +
+  geom_line(aes(x = x, y = y * nrow(EPL)), data = pois, color = "black", size=1) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_fill_brewer(palette = "Greens")+
+  labs(x = "Home Goals",
+       y = "Number of Games")
+
+xfit <- seq(min(EPL$FTAG), max(EPL$FTAG), by = 1)
+yfit <- dpois(xfit, lambda = mean(EPL$FTAG))
+pois <- data.table(x = xfit, y = yfit)
+
+e <- ggplot() +
+  geom_histogram(aes(x = as.factor(FTAG), fill=cut(FTAG,10)), stat = "count", data = EPL) +
+  geom_line(aes(x = x, y = y * nrow(EPL)), data = pois, color = "black", size=1) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_fill_brewer(palette = "Reds")+
+  labs(x = "Away Goals",
+       y = "Number of Games")
+
+(d + e)+
+  plot_annotation(title = "Poisson Distribution Lines",theme = 
+  theme(plot.title = element_text(size = 15, face = "bold")))
+
+```
+Poisson distribution assumption for the number of goals fits well to the actual match results.
+
+### 2.2. Task 2
+
+#### 2.2.1. Win and Draw Probabilities by Using Odds
+
+In the dataset there are six different bet sites, namely B365, BW, IW, PS, WH, and VC. Each of them consists of three columns for home, draw and away odds. Before starting to this task, four of them awere chosen: **B365, BW, IW, PS**. The odds we are using are given in a format known as “European style” in the gambling community, which for a fair (no-margin) bet is given as *odds = 1/P(win)*[3]. In line with this, the probabilities according to odd values are calculated below.<br> 
+**P(home win)**, **P(tie)** and **P(away win)** are calculated by *P(x) = 1/odd*.
+
+```{r message=FALSE, warning=FALSE}
+
+EPL$B365_prob_home <- 1 / EPL$B365H
+EPL$B365_prob_draw <- 1 / EPL$B365D
+EPL$B365_prob_away <- 1 / EPL$B365A
+
+EPL$BW_prob_home <- 1 / EPL$BWH
+EPL$BW_prob_draw <- 1 / EPL$BWD
+EPL$BW_prob_away <- 1 / EPL$BWA
+
+EPL$IW_prob_home <- 1 / EPL$IWH
+EPL$IW_prob_draw <- 1 / EPL$IWD
+EPL$IW_prob_away <- 1 / EPL$IWA
+
+EPL$PS_prob_home <- 1 / EPL$PSH
+EPL$PS_prob_draw <- 1 / EPL$PSD
+EPL$PS_prob_away <- 1 / EPL$PSA
+
+```
+
+```{r message=FALSE, warning=FALSE}
+EPL %>%
+  mutate(Home_Prob_B365 = 1 / EPL$B365H, Draw_Prob_B365 = 1 / EPL$B365D, Away_Prob_B365 = 1 / EPL$B365A , 
+         Home_Prob_BW = 1 / EPL$BWH, Draw_Prob_BW = 1 / EPL$BWD, Away_Prob_BW = 1 / EPL$BWA , 
+         Home_Prob_IW = 1 / EPL$IWH, Draw_Prob_IW = 1 / EPL$IWD, Away_Prob_IW = 1 / EPL$IWA , 
+         Home_Prob_PS = 1 / EPL$PSH, Draw_Prob_PS = 1 / EPL$PSD, Away_Prob_PS = 1 / EPL$PSA )%>%
+  select(Date, HomeTeam, AwayTeam, Home_Prob_B365 , Draw_Prob_B365, Away_Prob_B365, Home_Prob_BW , Draw_Prob_BW, Away_Prob_BW, Home_Prob_IW , Draw_Prob_IW, Away_Prob_IW, Home_Prob_PS , Draw_Prob_PS, Away_Prob_PS) %>%
+  kable(col.names = c("Date","Home Team","Away Team","B365 Home Win Probability",  "B365 Draw Probability", "B365 Away Probability" ,"BW Home Win Probability",  "BW Draw Probability", "BW Away Probability","IW Home Win Probability",  "IW Draw Probability", "IW Away Probability","PS Home Win Probability",  "PS Draw Probability", "PS Away Probability"))%>%
+  kable_styling("striped", "condensed", font_size = 13) %>%
+  scroll_box(width = "100%", height = "500px")
+
+```
+#### 2.2.2. Normalized Win and Draw Probabilities by Using Odds
+
+The normalizing factor is needed in order to remove the margin from the odds which are added by bookmakers[3].
+
+```{r message=FALSE, warning=FALSE}
+
+EPL$B365_norm_prob_home <- EPL$B365_prob_home / (EPL$B365_prob_home + EPL$B365_prob_draw + EPL$B365_prob_away)
+EPL$B365_norm_prob_draw <- EPL$B365_prob_draw / (EPL$B365_prob_home + EPL$B365_prob_draw + EPL$B365_prob_away)
+EPL$B365_norm_prob_away <- EPL$B365_prob_away / (EPL$B365_prob_home + EPL$B365_prob_draw + EPL$B365_prob_away)
+
+EPL$BW_norm_prob_home <- EPL$BW_prob_home / (EPL$BW_prob_home + EPL$BW_prob_draw + EPL$BW_prob_away)
+EPL$BW_norm_prob_draw <- EPL$BW_prob_draw / (EPL$BW_prob_home + EPL$BW_prob_draw + EPL$BW_prob_away)
+EPL$BW_norm_prob_away <- EPL$BW_prob_away / (EPL$BW_prob_home + EPL$BW_prob_draw + EPL$BW_prob_away)
+
+EPL$IW_norm_prob_home <- EPL$IW_prob_home / (EPL$IW_prob_home + EPL$IW_prob_draw + EPL$IW_prob_away)
+EPL$IW_norm_prob_draw <- EPL$IW_prob_draw / (EPL$IW_prob_home + EPL$IW_prob_draw + EPL$IW_prob_away)
+EPL$IW_norm_prob_away <- EPL$IW_prob_away / (EPL$IW_prob_home + EPL$IW_prob_draw + EPL$IW_prob_away)
+
+EPL$PS_norm_prob_home <- EPL$PS_prob_home / (EPL$PS_prob_home + EPL$PS_prob_draw + EPL$PS_prob_away)
+EPL$PS_norm_prob_draw <- EPL$PS_prob_draw / (EPL$PS_prob_home + EPL$PS_prob_draw + EPL$PS_prob_away)
+EPL$PS_norm_prob_away <- EPL$PS_prob_away / (EPL$PS_prob_home + EPL$PS_prob_draw + EPL$PS_prob_away)
+
+```
+
+```{r message=FALSE, warning=FALSE}
+EPL %>%
+  mutate(Home_norm_Prob_B365 = EPL$B365_prob_home / (EPL$B365_prob_home + EPL$B365_prob_draw + EPL$B365_prob_away), 
+         Draw_norm_Prob_B365 = EPL$B365_prob_draw / (EPL$B365_prob_home + EPL$B365_prob_draw + EPL$B365_prob_away), 
+         Away_norm_Prob_B365 = EPL$B365_prob_away / (EPL$B365_prob_home + EPL$B365_prob_draw + EPL$B365_prob_away) , 
+         Home_norm_Prob_BW = EPL$BW_prob_home / (EPL$BW_prob_home + EPL$BW_prob_draw + EPL$BW_prob_away), 
+         Draw_norm_Prob_BW = EPL$BW_prob_draw / (EPL$BW_prob_home + EPL$BW_prob_draw + EPL$BW_prob_away), 
+         Away_norm_Prob_BW = EPL$BW_prob_away / (EPL$BW_prob_home + EPL$BW_prob_draw + EPL$BW_prob_away) , 
+         Home_norm_Prob_IW = EPL$IW_prob_home / (EPL$IW_prob_home + EPL$IW_prob_draw + EPL$IW_prob_away), 
+         Draw_norm_Prob_IW = EPL$IW_prob_draw / (EPL$IW_prob_home + EPL$IW_prob_draw + EPL$IW_prob_away), 
+         Away_norm_Prob_IW = EPL$IW_prob_away / (EPL$IW_prob_home + EPL$IW_prob_draw + EPL$IW_prob_away) , 
+         Home_norm_Prob_PS = EPL$PS_prob_home / (EPL$PS_prob_home + EPL$PS_prob_draw + EPL$PS_prob_away), 
+         Draw_norm_Prob_PS = EPL$PS_prob_draw / (EPL$PS_prob_home + EPL$PS_prob_draw + EPL$PS_prob_away), 
+         Away_norm_Prob_PS = EPL$PS_prob_away / (EPL$PS_prob_home + EPL$PS_prob_draw + EPL$PS_prob_away))%>%
+  select(Date, HomeTeam, AwayTeam, Home_norm_Prob_B365 , Draw_norm_Prob_B365, Away_norm_Prob_B365, Home_norm_Prob_BW , Draw_norm_Prob_BW, Away_norm_Prob_BW, Home_norm_Prob_IW , Draw_norm_Prob_IW, Away_norm_Prob_IW, Home_norm_Prob_PS , Draw_norm_Prob_PS, Away_norm_Prob_PS) %>%
+  kable(col.names = c("Date","Home Team","Away Team","Normalized B365 Home Win Probability",  "Normalized B365 Draw Probability", "Normalized B365 Away Probability" ,"Normalized BW Home Win Probability",  "Normalized BW Draw Probability", "Normalized BW Away Probability","Normalized IW Home Win Probability",  "Normalized IW Draw Probability", "Normalized IW Away Probability","Normalized PS Home Win Probability",  "Normalized PS Draw Probability", "Normalized PS Away Probability"))%>%
+  kable_styling("striped", "condensed", font_size = 13) %>%
+  scroll_box(width = "100%", height = "500px")
+
+```
+
+#### 2.2.3. Normalized Probabilies by Using Odds vs Actual Probabilities Obtained from Match Results
+
+We can discretize **P(home win) – P(away win)** values into bins and calculate the number of games ended as *“Draw”* in the corresponding bin. Dividing this value by the total number of games in the corresponding bin will provide the estimated probability of draws. If this probability (calculated from the sample) is larger than the probability proposed by the bookmaker, one can potentially make money in the long run by betting on *“Draw”* for the games whose odds reside in the corresponding bin[2]. In the plots below, bin width is determined as 0.05.
+```{r message=FALSE, warning=FALSE, out.width="75%"}
+EPL <- EPL %>%
+  mutate(FTR_category = ifelse(FTR == 'D', 1, 0)) %>%
+  mutate(group = case_when(B365_norm_prob_home - B365_norm_prob_away < -0.95 ~ "1",
+            B365_norm_prob_home - B365_norm_prob_away < -0.90 ~ "2",
+            B365_norm_prob_home - B365_norm_prob_away < -0.85 ~ "3",
+            B365_norm_prob_home - B365_norm_prob_away < -0.80 ~ "4",
+            B365_norm_prob_home - B365_norm_prob_away < -0.75 ~ "5",
+            B365_norm_prob_home - B365_norm_prob_away < -0.70 ~ "6",
+            B365_norm_prob_home - B365_norm_prob_away < -0.65 ~ "7",
+            B365_norm_prob_home - B365_norm_prob_away < -0.60 ~ "8",
+            B365_norm_prob_home - B365_norm_prob_away < -0.55 ~ "9",
+            B365_norm_prob_home - B365_norm_prob_away < -0.50 ~ "10",
+            B365_norm_prob_home - B365_norm_prob_away < -0.45 ~ "11",
+            B365_norm_prob_home - B365_norm_prob_away < -0.40 ~ "12",
+            B365_norm_prob_home - B365_norm_prob_away < -0.35 ~ "13",
+            B365_norm_prob_home - B365_norm_prob_away < -0.30 ~ "14",
+            B365_norm_prob_home - B365_norm_prob_away < -0.25 ~ "15",
+            B365_norm_prob_home - B365_norm_prob_away < -0.20 ~ "16",
+            B365_norm_prob_home - B365_norm_prob_away < -0.15 ~ "17",
+            B365_norm_prob_home - B365_norm_prob_away < -0.10 ~ "18",
+            B365_norm_prob_home - B365_norm_prob_away < -0.05 ~ "19",
+            B365_norm_prob_home - B365_norm_prob_away < 0 ~ "20",
+            B365_norm_prob_home - B365_norm_prob_away < 0.05 ~ "21",
+            B365_norm_prob_home - B365_norm_prob_away < 0.10 ~ "22",
+            B365_norm_prob_home - B365_norm_prob_away < 0.15 ~ "23",
+            B365_norm_prob_home - B365_norm_prob_away < 0.20 ~ "24",
+            B365_norm_prob_home - B365_norm_prob_away < 0.25 ~ "25",
+            B365_norm_prob_home - B365_norm_prob_away < 0.30 ~ "26",
+            B365_norm_prob_home - B365_norm_prob_away < 0.35 ~ "27",
+            B365_norm_prob_home - B365_norm_prob_away < 0.40 ~ "28",
+            B365_norm_prob_home - B365_norm_prob_away < 0.45 ~ "29",
+            B365_norm_prob_home - B365_norm_prob_away < 0.50 ~ "30",
+            B365_norm_prob_home - B365_norm_prob_away < 0.55 ~ "31",
+            B365_norm_prob_home - B365_norm_prob_away < 0.60 ~ "32",
+            B365_norm_prob_home - B365_norm_prob_away < 0.65 ~ "33",
+            B365_norm_prob_home - B365_norm_prob_away < 0.70 ~ "34",
+            B365_norm_prob_home - B365_norm_prob_away < 0.75 ~ "35",
+            B365_norm_prob_home - B365_norm_prob_away < 0.80 ~ "36",
+            B365_norm_prob_home - B365_norm_prob_away < 0.85 ~ "37",
+            B365_norm_prob_home - B365_norm_prob_away < 0.90 ~ "38",
+            B365_norm_prob_home - B365_norm_prob_away < 0.95 ~ "39",
+            TRUE ~ "40")) %>%
+  group_by(group) %>%
+  mutate(result_B365 = mean(FTR_category))
+
+ggplot() +
+  geom_point(aes(x = B365_norm_prob_home - B365_norm_prob_away, y = result_B365), data = EPL, color = "tomato3") +
+  geom_point(aes(x = B365_norm_prob_home - B365_norm_prob_away, y = B365_norm_prob_draw), data = EPL, color = "skyblue2")+
+  theme_minimal()+
+  labs(title = "Normalized Probability vs. Actual Probability",
+       subtitle = "B365",
+       x = "Normalized Home Probability - Normalized Away Probability",
+       y = "Results")
+```
+
+#### 2.2.4. Normalized Probabilities by Using Odds vs Actual Probabilities for Different Bookmakers
+
+The same steps are followed for the other 3 bookmakers: *BW, IW,* and *PS*.
+
+```{r message=FALSE, warning=FALSE , results = 'hide', fig.width=12, fig.height=4}
+EPL <- EPL %>%
+  mutate(group = case_when(BW_norm_prob_home - BW_norm_prob_away < -0.95 ~ "1",
+            BW_norm_prob_home - BW_norm_prob_away < -0.90 ~ "2",
+            BW_norm_prob_home - BW_norm_prob_away < -0.85 ~ "3",
+            BW_norm_prob_home - BW_norm_prob_away < -0.80 ~ "4",
+            BW_norm_prob_home - BW_norm_prob_away < -0.75 ~ "5",
+            BW_norm_prob_home - BW_norm_prob_away < -0.70 ~ "6",
+            BW_norm_prob_home - BW_norm_prob_away < -0.65 ~ "7",
+            BW_norm_prob_home - BW_norm_prob_away < -0.60 ~ "8",
+            BW_norm_prob_home - BW_norm_prob_away < -0.55 ~ "9",
+            BW_norm_prob_home - BW_norm_prob_away < -0.50 ~ "10",
+            BW_norm_prob_home - BW_norm_prob_away < -0.45 ~ "11",
+            BW_norm_prob_home - BW_norm_prob_away < -0.40 ~ "12",
+            BW_norm_prob_home - BW_norm_prob_away < -0.35 ~ "13",
+            BW_norm_prob_home - BW_norm_prob_away < -0.30 ~ "14",
+            BW_norm_prob_home - BW_norm_prob_away < -0.25 ~ "15",
+            BW_norm_prob_home - BW_norm_prob_away < -0.20 ~ "16",
+            BW_norm_prob_home - BW_norm_prob_away < -0.15 ~ "17",
+            BW_norm_prob_home - BW_norm_prob_away < -0.10 ~ "18",
+            BW_norm_prob_home - BW_norm_prob_away < -0.05 ~ "19",
+            BW_norm_prob_home - BW_norm_prob_away < 0 ~ "20",
+            BW_norm_prob_home - BW_norm_prob_away < 0.05 ~ "21",
+            BW_norm_prob_home - BW_norm_prob_away < 0.10 ~ "22",
+            BW_norm_prob_home - BW_norm_prob_away < 0.15 ~ "23",
+            BW_norm_prob_home - BW_norm_prob_away < 0.20 ~ "24",
+            BW_norm_prob_home - BW_norm_prob_away < 0.25 ~ "25",
+            BW_norm_prob_home - BW_norm_prob_away < 0.30 ~ "26",
+            BW_norm_prob_home - BW_norm_prob_away < 0.35 ~ "27",
+            BW_norm_prob_home - BW_norm_prob_away < 0.40 ~ "28",
+            BW_norm_prob_home - BW_norm_prob_away < 0.45 ~ "29",
+            BW_norm_prob_home - BW_norm_prob_away < 0.50 ~ "30",
+            BW_norm_prob_home - BW_norm_prob_away < 0.55 ~ "31",
+            BW_norm_prob_home - BW_norm_prob_away < 0.60 ~ "32",
+            BW_norm_prob_home - BW_norm_prob_away < 0.65 ~ "33",
+            BW_norm_prob_home - BW_norm_prob_away < 0.70 ~ "34",
+            BW_norm_prob_home - BW_norm_prob_away < 0.75 ~ "35",
+            BW_norm_prob_home - BW_norm_prob_away < 0.80 ~ "36",
+            BW_norm_prob_home - BW_norm_prob_away < 0.85 ~ "37",
+            BW_norm_prob_home - BW_norm_prob_away < 0.90 ~ "38",
+            BW_norm_prob_home - BW_norm_prob_away < 0.95 ~ "39",
+            TRUE ~ "40")) %>%
+  group_by(group) %>%
+  mutate(result_BW = mean(FTR_category))
+
+f<-ggplot() +
+  geom_point(aes(x = BW_norm_prob_home - BW_norm_prob_away, y = result_BW), data = EPL, color = "tomato3") +
+  geom_point(aes(x = BW_norm_prob_home - BW_norm_prob_away, y = BW_norm_prob_draw), data = EPL, color = "skyblue2")+
+  theme_minimal()+
+  labs(subtitle = "BW",
+       x = "P(Home) - P(Away)",
+       y = "Results")
+EPL <- EPL %>%
+  mutate(group = case_when(IW_norm_prob_home - IW_norm_prob_away < -0.95 ~ "1",
+            IW_norm_prob_home - IW_norm_prob_away < -0.90 ~ "2",
+            IW_norm_prob_home - IW_norm_prob_away < -0.85 ~ "3",
+            IW_norm_prob_home - IW_norm_prob_away < -0.80 ~ "4",
+            IW_norm_prob_home - IW_norm_prob_away < -0.75 ~ "5",
+            IW_norm_prob_home - IW_norm_prob_away < -0.70 ~ "6",
+            IW_norm_prob_home - IW_norm_prob_away < -0.65 ~ "7",
+            IW_norm_prob_home - IW_norm_prob_away < -0.60 ~ "8",
+            IW_norm_prob_home - IW_norm_prob_away < -0.55 ~ "9",
+            IW_norm_prob_home - IW_norm_prob_away < -0.50 ~ "10",
+            IW_norm_prob_home - IW_norm_prob_away < -0.45 ~ "11",
+            IW_norm_prob_home - IW_norm_prob_away < -0.40 ~ "12",
+            IW_norm_prob_home - IW_norm_prob_away < -0.35 ~ "13",
+            IW_norm_prob_home - IW_norm_prob_away < -0.30 ~ "14",
+            IW_norm_prob_home - IW_norm_prob_away < -0.25 ~ "15",
+            IW_norm_prob_home - IW_norm_prob_away < -0.20 ~ "16",
+            IW_norm_prob_home - IW_norm_prob_away < -0.15 ~ "17",
+            IW_norm_prob_home - IW_norm_prob_away < -0.10 ~ "18",
+            IW_norm_prob_home - IW_norm_prob_away < -0.05 ~ "19",
+            IW_norm_prob_home - IW_norm_prob_away < 0 ~ "20",
+            IW_norm_prob_home - IW_norm_prob_away < 0.05 ~ "21",
+            IW_norm_prob_home - IW_norm_prob_away < 0.10 ~ "22",
+            IW_norm_prob_home - IW_norm_prob_away < 0.15 ~ "23",
+            IW_norm_prob_home - IW_norm_prob_away < 0.20 ~ "24",
+            IW_norm_prob_home - IW_norm_prob_away < 0.25 ~ "25",
+            IW_norm_prob_home - IW_norm_prob_away < 0.30 ~ "26",
+            IW_norm_prob_home - IW_norm_prob_away < 0.35 ~ "27",
+            IW_norm_prob_home - IW_norm_prob_away < 0.40 ~ "28",
+            IW_norm_prob_home - IW_norm_prob_away < 0.45 ~ "29",
+            IW_norm_prob_home - IW_norm_prob_away < 0.50 ~ "30",
+            IW_norm_prob_home - IW_norm_prob_away < 0.55 ~ "31",
+            IW_norm_prob_home - IW_norm_prob_away < 0.60 ~ "32",
+            IW_norm_prob_home - IW_norm_prob_away < 0.65 ~ "33",
+            IW_norm_prob_home - IW_norm_prob_away < 0.70 ~ "34",
+            IW_norm_prob_home - IW_norm_prob_away < 0.75 ~ "35",
+            IW_norm_prob_home - IW_norm_prob_away < 0.80 ~ "36",
+            IW_norm_prob_home - IW_norm_prob_away < 0.85 ~ "37",
+            IW_norm_prob_home - IW_norm_prob_away < 0.90 ~ "38",
+            IW_norm_prob_home - IW_norm_prob_away < 0.95 ~ "39",
+            TRUE ~ "40")) %>%
+  mutate(result_IW = mean(FTR_category))
+
+g<-ggplot() +
+  geom_point(aes(x = IW_norm_prob_home - IW_norm_prob_away, y = result_IW), data = EPL, color = "tomato3") +
+  geom_point(aes(x = IW_norm_prob_home - IW_norm_prob_away, y = IW_norm_prob_draw), data = EPL, color = "skyblue2")+
+  theme_minimal()+
+  labs( subtitle = "IW",
+       x = "P(Home) - P(Away)",
+       y = "Results")
+EPL <- EPL %>%
+  mutate(group = case_when(PS_norm_prob_home - PS_norm_prob_away < -0.95 ~ "1",
+            PS_norm_prob_home - PS_norm_prob_away < -0.90 ~ "2",
+            PS_norm_prob_home - PS_norm_prob_away < -0.85 ~ "3",
+            PS_norm_prob_home - PS_norm_prob_away < -0.80 ~ "4",
+            PS_norm_prob_home - PS_norm_prob_away < -0.75 ~ "5",
+            PS_norm_prob_home - PS_norm_prob_away < -0.70 ~ "6",
+            PS_norm_prob_home - PS_norm_prob_away < -0.65 ~ "7",
+            PS_norm_prob_home - PS_norm_prob_away < -0.60 ~ "8",
+            PS_norm_prob_home - PS_norm_prob_away < -0.55 ~ "9",
+            PS_norm_prob_home - PS_norm_prob_away < -0.50 ~ "10",
+            PS_norm_prob_home - PS_norm_prob_away < -0.45 ~ "11",
+            PS_norm_prob_home - PS_norm_prob_away < -0.40 ~ "12",
+            PS_norm_prob_home - PS_norm_prob_away < -0.35 ~ "13",
+            PS_norm_prob_home - PS_norm_prob_away < -0.30 ~ "14",
+            PS_norm_prob_home - PS_norm_prob_away < -0.25 ~ "15",
+            PS_norm_prob_home - PS_norm_prob_away < -0.20 ~ "16",
+            PS_norm_prob_home - PS_norm_prob_away < -0.15 ~ "17",
+            PS_norm_prob_home - PS_norm_prob_away < -0.10 ~ "18",
+            PS_norm_prob_home - PS_norm_prob_away < -0.05 ~ "19",
+            PS_norm_prob_home - PS_norm_prob_away < 0 ~ "20",
+            PS_norm_prob_home - PS_norm_prob_away < 0.05 ~ "21",
+            PS_norm_prob_home - PS_norm_prob_away < 0.10 ~ "22",
+            PS_norm_prob_home - PS_norm_prob_away < 0.15 ~ "23",
+            PS_norm_prob_home - PS_norm_prob_away < 0.20 ~ "24",
+            PS_norm_prob_home - PS_norm_prob_away < 0.25 ~ "25",
+            PS_norm_prob_home - PS_norm_prob_away < 0.30 ~ "26",
+            PS_norm_prob_home - PS_norm_prob_away < 0.35 ~ "27",
+            PS_norm_prob_home - PS_norm_prob_away < 0.40 ~ "28",
+            PS_norm_prob_home - PS_norm_prob_away < 0.45 ~ "29",
+            PS_norm_prob_home - PS_norm_prob_away < 0.50 ~ "30",
+            PS_norm_prob_home - PS_norm_prob_away < 0.55 ~ "31",
+            PS_norm_prob_home - PS_norm_prob_away < 0.60 ~ "32",
+            PS_norm_prob_home - PS_norm_prob_away < 0.65 ~ "33",
+            PS_norm_prob_home - PS_norm_prob_away < 0.70 ~ "34",
+            PS_norm_prob_home - PS_norm_prob_away < 0.75 ~ "35",
+            PS_norm_prob_home - PS_norm_prob_away < 0.80 ~ "36",
+            PS_norm_prob_home - PS_norm_prob_away < 0.85 ~ "37",
+            PS_norm_prob_home - PS_norm_prob_away < 0.90 ~ "38",
+            PS_norm_prob_home - PS_norm_prob_away < 0.95 ~ "39",
+            TRUE ~ "40")) %>%
+  group_by(group) %>%
+  mutate(result_PS = mean(FTR_category))
+
+h<-ggplot() +
+  geom_point(aes(x = PS_norm_prob_home - PS_norm_prob_away, y = result_PS), data = EPL, color = "tomato3") +
+  geom_point(aes(x = PS_norm_prob_home - PS_norm_prob_away, y = PS_norm_prob_draw), data = EPL, color = "skyblue2")+
+  theme_minimal()+
+  labs(subtitle = "PS",
+       x = "P(Home) - P(Away) ",
+       y = "Results")
+(f+g+h)+
+  plot_annotation(title = "Normalized Probability vs. Actual Probability for other Bookmakers",theme = 
+  theme(plot.title = element_text(size = 15, face = "bold")))
+
+```
+
+When above plots are examined, it can be seen that there is a difference between them due to the different odds offered by different bookmakers. For the bookmaker B365 there are 6 bins, for the bookmaker BW there are 7 bins, for the bookmaker IW there are 2 bins, and for the bookmaker PS there are 8 bins which are exactly above the normalized odds probabilities without any overlaps. Since the actual match results(reds) and the normalized odds probabilities(blues) are not well-aligned there is **Odd Bias**. To make it more clear, if these two colored dots(reds and blues) overlap, one would always lose in the long turn because of the margin added by the bookmakers. However, in long run one would make money by betting on games where the red dots are higher than the blue dots.  Supporting what has been said, it is seen that the red points are over the blue dots mostly in the Draw area. If one wants to compare the performance of different bookmakers, IW can be said to be the best, while PS can be said to be the worst due to the position of red and blue dots.
+
+### 2.3. Task 3
+
+#### 2.3.1. Same Analysis for the Matches without Red Card
+
+There can be some events during the matches which create noise in the outcomes. To be more specific, we consider a specific case in this task. Red cards can affect the outcome of the match drqastically because playing with few players is always a disadvantage for the teams[2]. In order to examine this case, the previous steps are followed for only the matches without red cards. 
+
+```{r message=FALSE, warning=FALSE}
+EPL_3 <- EPL %>%
+  filter(HR + AR == 0)
+```
+
+```{r message=FALSE, warning=FALSE , results = 'hide'}
+EPL_3 <- EPL_3 %>%
+  mutate(FTR_category = ifelse(FTR == 'D', 1, 0)) %>%
+  mutate(group = case_when(B365_norm_prob_home - B365_norm_prob_away < -0.95 ~ "1",
+            B365_norm_prob_home - B365_norm_prob_away < -0.90 ~ "2",
+            B365_norm_prob_home - B365_norm_prob_away < -0.85 ~ "3",
+            B365_norm_prob_home - B365_norm_prob_away < -0.80 ~ "4",
+            B365_norm_prob_home - B365_norm_prob_away < -0.75 ~ "5",
+            B365_norm_prob_home - B365_norm_prob_away < -0.70 ~ "6",
+            B365_norm_prob_home - B365_norm_prob_away < -0.65 ~ "7",
+            B365_norm_prob_home - B365_norm_prob_away < -0.60 ~ "8",
+            B365_norm_prob_home - B365_norm_prob_away < -0.55 ~ "9",
+            B365_norm_prob_home - B365_norm_prob_away < -0.50 ~ "10",
+            B365_norm_prob_home - B365_norm_prob_away < -0.45 ~ "11",
+            B365_norm_prob_home - B365_norm_prob_away < -0.40 ~ "12",
+            B365_norm_prob_home - B365_norm_prob_away < -0.35 ~ "13",
+            B365_norm_prob_home - B365_norm_prob_away < -0.30 ~ "14",
+            B365_norm_prob_home - B365_norm_prob_away < -0.25 ~ "15",
+            B365_norm_prob_home - B365_norm_prob_away < -0.20 ~ "16",
+            B365_norm_prob_home - B365_norm_prob_away < -0.15 ~ "17",
+            B365_norm_prob_home - B365_norm_prob_away < -0.10 ~ "18",
+            B365_norm_prob_home - B365_norm_prob_away < -0.05 ~ "19",
+            B365_norm_prob_home - B365_norm_prob_away < 0 ~ "20",
+            B365_norm_prob_home - B365_norm_prob_away < 0.05 ~ "21",
+            B365_norm_prob_home - B365_norm_prob_away < 0.10 ~ "22",
+            B365_norm_prob_home - B365_norm_prob_away < 0.15 ~ "23",
+            B365_norm_prob_home - B365_norm_prob_away < 0.20 ~ "24",
+            B365_norm_prob_home - B365_norm_prob_away < 0.25 ~ "25",
+            B365_norm_prob_home - B365_norm_prob_away < 0.30 ~ "26",
+            B365_norm_prob_home - B365_norm_prob_away < 0.35 ~ "27",
+            B365_norm_prob_home - B365_norm_prob_away < 0.40 ~ "28",
+            B365_norm_prob_home - B365_norm_prob_away < 0.45 ~ "29",
+            B365_norm_prob_home - B365_norm_prob_away < 0.50 ~ "30",
+            B365_norm_prob_home - B365_norm_prob_away < 0.55 ~ "31",
+            B365_norm_prob_home - B365_norm_prob_away < 0.60 ~ "32",
+            B365_norm_prob_home - B365_norm_prob_away < 0.65 ~ "33",
+            B365_norm_prob_home - B365_norm_prob_away < 0.70 ~ "34",
+            B365_norm_prob_home - B365_norm_prob_away < 0.75 ~ "35",
+            B365_norm_prob_home - B365_norm_prob_away < 0.80 ~ "36",
+            B365_norm_prob_home - B365_norm_prob_away < 0.85 ~ "37",
+            B365_norm_prob_home - B365_norm_prob_away < 0.90 ~ "38",
+            B365_norm_prob_home - B365_norm_prob_away < 0.95 ~ "39",
+            TRUE ~ "40")) %>%
+  group_by(group) %>%
+  mutate(result_B365 = mean(FTR_category))
+
+EPL_3 <- EPL_3 %>%
+   mutate(group = case_when(BW_norm_prob_home - BW_norm_prob_away < -0.95 ~ "1",
+            BW_norm_prob_home - BW_norm_prob_away < -0.90 ~ "2",
+            BW_norm_prob_home - BW_norm_prob_away < -0.85 ~ "3",
+            BW_norm_prob_home - BW_norm_prob_away < -0.80 ~ "4",
+            BW_norm_prob_home - BW_norm_prob_away < -0.75 ~ "5",
+            BW_norm_prob_home - BW_norm_prob_away < -0.70 ~ "6",
+            BW_norm_prob_home - BW_norm_prob_away < -0.65 ~ "7",
+            BW_norm_prob_home - BW_norm_prob_away < -0.60 ~ "8",
+            BW_norm_prob_home - BW_norm_prob_away < -0.55 ~ "9",
+            BW_norm_prob_home - BW_norm_prob_away < -0.50 ~ "10",
+            BW_norm_prob_home - BW_norm_prob_away < -0.45 ~ "11",
+            BW_norm_prob_home - BW_norm_prob_away < -0.40 ~ "12",
+            BW_norm_prob_home - BW_norm_prob_away < -0.35 ~ "13",
+            BW_norm_prob_home - BW_norm_prob_away < -0.30 ~ "14",
+            BW_norm_prob_home - BW_norm_prob_away < -0.25 ~ "15",
+            BW_norm_prob_home - BW_norm_prob_away < -0.20 ~ "16",
+            BW_norm_prob_home - BW_norm_prob_away < -0.15 ~ "17",
+            BW_norm_prob_home - BW_norm_prob_away < -0.10 ~ "18",
+            BW_norm_prob_home - BW_norm_prob_away < -0.05 ~ "19",
+            BW_norm_prob_home - BW_norm_prob_away < 0 ~ "20",
+            BW_norm_prob_home - BW_norm_prob_away < 0.05 ~ "21",
+            BW_norm_prob_home - BW_norm_prob_away < 0.10 ~ "22",
+            BW_norm_prob_home - BW_norm_prob_away < 0.15 ~ "23",
+            BW_norm_prob_home - BW_norm_prob_away < 0.20 ~ "24",
+            BW_norm_prob_home - BW_norm_prob_away < 0.25 ~ "25",
+            BW_norm_prob_home - BW_norm_prob_away < 0.30 ~ "26",
+            BW_norm_prob_home - BW_norm_prob_away < 0.35 ~ "27",
+            BW_norm_prob_home - BW_norm_prob_away < 0.40 ~ "28",
+            BW_norm_prob_home - BW_norm_prob_away < 0.45 ~ "29",
+            BW_norm_prob_home - BW_norm_prob_away < 0.50 ~ "30",
+            BW_norm_prob_home - BW_norm_prob_away < 0.55 ~ "31",
+            BW_norm_prob_home - BW_norm_prob_away < 0.60 ~ "32",
+            BW_norm_prob_home - BW_norm_prob_away < 0.65 ~ "33",
+            BW_norm_prob_home - BW_norm_prob_away < 0.70 ~ "34",
+            BW_norm_prob_home - BW_norm_prob_away < 0.75 ~ "35",
+            BW_norm_prob_home - BW_norm_prob_away < 0.80 ~ "36",
+            BW_norm_prob_home - BW_norm_prob_away < 0.85 ~ "37",
+            BW_norm_prob_home - BW_norm_prob_away < 0.90 ~ "38",
+            BW_norm_prob_home - BW_norm_prob_away < 0.95 ~ "39",
+            TRUE ~ "40")) %>%
+  group_by(group) %>%
+  mutate(result_BW = mean(FTR_category))
+
+EPL_3 <- EPL_3 %>%
+  mutate(group = case_when(IW_norm_prob_home - IW_norm_prob_away < -0.95 ~ "1",
+            IW_norm_prob_home - IW_norm_prob_away < -0.90 ~ "2",
+            IW_norm_prob_home - IW_norm_prob_away < -0.85 ~ "3",
+            IW_norm_prob_home - IW_norm_prob_away < -0.80 ~ "4",
+            IW_norm_prob_home - IW_norm_prob_away < -0.75 ~ "5",
+            IW_norm_prob_home - IW_norm_prob_away < -0.70 ~ "6",
+            IW_norm_prob_home - IW_norm_prob_away < -0.65 ~ "7",
+            IW_norm_prob_home - IW_norm_prob_away < -0.60 ~ "8",
+            IW_norm_prob_home - IW_norm_prob_away < -0.55 ~ "9",
+            IW_norm_prob_home - IW_norm_prob_away < -0.50 ~ "10",
+            IW_norm_prob_home - IW_norm_prob_away < -0.45 ~ "11",
+            IW_norm_prob_home - IW_norm_prob_away < -0.40 ~ "12",
+            IW_norm_prob_home - IW_norm_prob_away < -0.35 ~ "13",
+            IW_norm_prob_home - IW_norm_prob_away < -0.30 ~ "14",
+            IW_norm_prob_home - IW_norm_prob_away < -0.25 ~ "15",
+            IW_norm_prob_home - IW_norm_prob_away < -0.20 ~ "16",
+            IW_norm_prob_home - IW_norm_prob_away < -0.15 ~ "17",
+            IW_norm_prob_home - IW_norm_prob_away < -0.10 ~ "18",
+            IW_norm_prob_home - IW_norm_prob_away < -0.05 ~ "19",
+            IW_norm_prob_home - IW_norm_prob_away < 0 ~ "20",
+            IW_norm_prob_home - IW_norm_prob_away < 0.05 ~ "21",
+            IW_norm_prob_home - IW_norm_prob_away < 0.10 ~ "22",
+            IW_norm_prob_home - IW_norm_prob_away < 0.15 ~ "23",
+            IW_norm_prob_home - IW_norm_prob_away < 0.20 ~ "24",
+            IW_norm_prob_home - IW_norm_prob_away < 0.25 ~ "25",
+            IW_norm_prob_home - IW_norm_prob_away < 0.30 ~ "26",
+            IW_norm_prob_home - IW_norm_prob_away < 0.35 ~ "27",
+            IW_norm_prob_home - IW_norm_prob_away < 0.40 ~ "28",
+            IW_norm_prob_home - IW_norm_prob_away < 0.45 ~ "29",
+            IW_norm_prob_home - IW_norm_prob_away < 0.50 ~ "30",
+            IW_norm_prob_home - IW_norm_prob_away < 0.55 ~ "31",
+            IW_norm_prob_home - IW_norm_prob_away < 0.60 ~ "32",
+            IW_norm_prob_home - IW_norm_prob_away < 0.65 ~ "33",
+            IW_norm_prob_home - IW_norm_prob_away < 0.70 ~ "34",
+            IW_norm_prob_home - IW_norm_prob_away < 0.75 ~ "35",
+            IW_norm_prob_home - IW_norm_prob_away < 0.80 ~ "36",
+            IW_norm_prob_home - IW_norm_prob_away < 0.85 ~ "37",
+            IW_norm_prob_home - IW_norm_prob_away < 0.90 ~ "38",
+            IW_norm_prob_home - IW_norm_prob_away < 0.95 ~ "39",
+            TRUE ~ "40")) %>%
+  group_by(group) %>%
+  mutate(result_IW = mean(FTR_category))
+
+EPL_3 <- EPL_3 %>%
+  mutate(group = case_when(PS_norm_prob_home - PS_norm_prob_away < -0.95 ~ "1",
+            PS_norm_prob_home - PS_norm_prob_away < -0.90 ~ "2",
+            PS_norm_prob_home - PS_norm_prob_away < -0.85 ~ "3",
+            PS_norm_prob_home - PS_norm_prob_away < -0.80 ~ "4",
+            PS_norm_prob_home - PS_norm_prob_away < -0.75 ~ "5",
+            PS_norm_prob_home - PS_norm_prob_away < -0.70 ~ "6",
+            PS_norm_prob_home - PS_norm_prob_away < -0.65 ~ "7",
+            PS_norm_prob_home - PS_norm_prob_away < -0.60 ~ "8",
+            PS_norm_prob_home - PS_norm_prob_away < -0.55 ~ "9",
+            PS_norm_prob_home - PS_norm_prob_away < -0.50 ~ "10",
+            PS_norm_prob_home - PS_norm_prob_away < -0.45 ~ "11",
+            PS_norm_prob_home - PS_norm_prob_away < -0.40 ~ "12",
+            PS_norm_prob_home - PS_norm_prob_away < -0.35 ~ "13",
+            PS_norm_prob_home - PS_norm_prob_away < -0.30 ~ "14",
+            PS_norm_prob_home - PS_norm_prob_away < -0.25 ~ "15",
+            PS_norm_prob_home - PS_norm_prob_away < -0.20 ~ "16",
+            PS_norm_prob_home - PS_norm_prob_away < -0.15 ~ "17",
+            PS_norm_prob_home - PS_norm_prob_away < -0.10 ~ "18",
+            PS_norm_prob_home - PS_norm_prob_away < -0.05 ~ "19",
+            PS_norm_prob_home - PS_norm_prob_away < 0 ~ "20",
+            PS_norm_prob_home - PS_norm_prob_away < 0.05 ~ "21",
+            PS_norm_prob_home - PS_norm_prob_away < 0.10 ~ "22",
+            PS_norm_prob_home - PS_norm_prob_away < 0.15 ~ "23",
+            PS_norm_prob_home - PS_norm_prob_away < 0.20 ~ "24",
+            PS_norm_prob_home - PS_norm_prob_away < 0.25 ~ "25",
+            PS_norm_prob_home - PS_norm_prob_away < 0.30 ~ "26",
+            PS_norm_prob_home - PS_norm_prob_away < 0.35 ~ "27",
+            PS_norm_prob_home - PS_norm_prob_away < 0.40 ~ "28",
+            PS_norm_prob_home - PS_norm_prob_away < 0.45 ~ "29",
+            PS_norm_prob_home - PS_norm_prob_away < 0.50 ~ "30",
+            PS_norm_prob_home - PS_norm_prob_away < 0.55 ~ "31",
+            PS_norm_prob_home - PS_norm_prob_away < 0.60 ~ "32",
+            PS_norm_prob_home - PS_norm_prob_away < 0.65 ~ "33",
+            PS_norm_prob_home - PS_norm_prob_away < 0.70 ~ "34",
+            PS_norm_prob_home - PS_norm_prob_away < 0.75 ~ "35",
+            PS_norm_prob_home - PS_norm_prob_away < 0.80 ~ "36",
+            PS_norm_prob_home - PS_norm_prob_away < 0.85 ~ "37",
+            PS_norm_prob_home - PS_norm_prob_away < 0.90 ~ "38",
+            PS_norm_prob_home - PS_norm_prob_away < 0.95 ~ "39",
+            TRUE ~ "40")) %>%
+  group_by(group) %>%
+  mutate(result_PS = mean(FTR_category))
+
+```
+
+```{r message=FALSE, warning=FALSE , results = 'hide', fig.height=10}
+
+j<- ggplot() +
+  geom_point(aes(x = B365_norm_prob_home - B365_norm_prob_away, y = result_B365), data = EPL_3, color = "tomato3") +
+  geom_point(aes(x = B365_norm_prob_home - B365_norm_prob_away, y = B365_norm_prob_draw), data = EPL_3, color = "seagreen3")+
+  theme_minimal()+
+  labs(title= "Matches without Red Cards",
+       subtitle = "B365",
+       x = "P(Home) - P(Away)",
+       y = "Results")
+
+k<- ggplot() +
+  geom_point(aes(x = BW_norm_prob_home - BW_norm_prob_away, y = result_BW), data = EPL_3, color = "tomato3") +
+  geom_point(aes(x = BW_norm_prob_home - BW_norm_prob_away, y = BW_norm_prob_draw), data = EPL_3, color = "seagreen3")+
+  theme_minimal()+
+  labs(subtitle = "BW",
+       x = "P(Home) - P(Away)",
+       y = "Results")
+
+l<- ggplot() +
+  geom_point(aes(x = IW_norm_prob_home - IW_norm_prob_away, y = result_IW), data = EPL_3, color = "tomato3") +
+  geom_point(aes(x = IW_norm_prob_home - IW_norm_prob_away, y = IW_norm_prob_draw), data = EPL_3, color = "seagreen3")+
+  theme_minimal()+
+  labs(subtitle = "IW",
+       x = "P(Home) - P(Away)",
+       y = "Results")
+
+m<- ggplot() +
+  geom_point(aes(x = PS_norm_prob_home - PS_norm_prob_away, y = result_PS), data = EPL_3, color = "tomato3") +
+  geom_point(aes(x = PS_norm_prob_home - PS_norm_prob_away, y = PS_norm_prob_draw), data = EPL_3, color = "seagreen3")+
+  theme_minimal()+
+  labs(subtitle = "PS",
+       x = "P(Home) - P(Away)",
+       y = "Results")
+
+n<-ggplot() +
+  geom_point(aes(x = B365_norm_prob_home - B365_norm_prob_away, y = result_B365), data = EPL, color = "tomato3") +
+  geom_point(aes(x = B365_norm_prob_home - B365_norm_prob_away, y = B365_norm_prob_draw), data = EPL, color = "skyblue2")+
+  theme_minimal()+
+  labs( title= "Matches with Red Cards",
+      subtitle = "B365",
+       x = "P(Home) - P(Away)",
+       y = "Results")
+
+
+o<-ggplot() +
+  geom_point(aes(x = BW_norm_prob_home - BW_norm_prob_away, y = result_BW), data = EPL, color = "tomato3") +
+  geom_point(aes(x = BW_norm_prob_home - BW_norm_prob_away, y = BW_norm_prob_draw), data = EPL, color = "skyblue2")+
+  theme_minimal()+
+  labs(subtitle = "BW",
+       x = "P(Home) - P(Away)",
+       y = "Results")
+
+p<-ggplot() +
+  geom_point(aes(x = IW_norm_prob_home - IW_norm_prob_away, y = result_IW), data = EPL, color = "tomato3") +
+  geom_point(aes(x = IW_norm_prob_home - IW_norm_prob_away, y = IW_norm_prob_draw), data = EPL, color = "skyblue2")+
+  theme_minimal()+
+  labs( subtitle = "IW",
+       x = "P(Home) - P(Away)",
+       y = "Results")
+
+r<-ggplot() +
+  geom_point(aes(x = PS_norm_prob_home - PS_norm_prob_away, y = result_PS), data = EPL, color = "tomato3") +
+  geom_point(aes(x = PS_norm_prob_home - PS_norm_prob_away, y = PS_norm_prob_draw), data = EPL, color = "skyblue2")+
+  theme_minimal()+
+  labs(subtitle = "PS",
+       x = "P(Home) - P(Away) ",
+       y = "Results")
+
+((j+n)/(k+o)/(l+p)/(m+r))+
+  plot_annotation(title = "Matches with and without Red Cards",theme = 
+  theme(plot.title = element_text(size = 15, face = "bold")))
+
+ 
+```
+
+There are some slight changes for the positions of the red dots however there is no significant change on the overall shape of the graphs. 
+The bookmakers B365, BW and, PS are still not good at determining bets for the games which are resulted with draw. On the other hand, the bookmaker IW is more successful than the other three.
+
+## References
+[1. Wikipedia Premier League Info](https://en.wikipedia.org/wiki/Premier_League#cite_note-1)<br>
+[2. Assignment](https://moodle.boun.edu.tr/pluginfile.php/652573/mod_resource/content/0/IE582_Fall20_Homework1.pdf)<br>
+[3. Statistical Football Modeling A Study of Football Betting and Implementation of Statistical Algorithms in Premier League](http://www.it.uu.se/edu/course/homepage/projektTDB/ht15/project16/Project16_Report.pdf)<br>
+[4. Variable Definitions](https://docs.google.com/spreadsheets/d/16aZYItIHmGmqaLnRaW0XUMcwFFNxhcLB6nKqpzog06c/edit#gid=0)<br>
+[5. Data](https://www.football-data.co.uk/data.php)<br>
