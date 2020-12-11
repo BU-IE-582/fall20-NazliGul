@@ -13,6 +13,8 @@ Assignments during the term can be find below.<br>
 
 - Sports Forecasting: [html](Assignment1-582.html)
 
-**Assignment 2:** 
+**Assignment 2:** A report consists of Principal Component Analysis for Gesture data.
+
+- Dimensionality Reduction for Gesture Recognition Time Series Data: [html]()
   
 
