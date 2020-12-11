@@ -15,6 +15,6 @@ Assignments during the term can be find below.<br>
 
 **Assignment 2:** A report consists of Principal Component Analysis for Gesture data.
 
-- Dimensionality Reduction for Gesture Recognition Time Series Data: [html]()
+- Dimensionality Reduction for Gesture Recognition Time Series Data: [html](Assignment-2-582.html)
   
 
