@@ -17,4 +17,8 @@ Assignments during the term can be find below.<br>
 
 - Dimensionality Reduction for Gesture Recognition Time Series Data: [html](Assignment-2-582.html)
   
+**Assignment 3:** A report consists of implementation and comparison of different regression approaches on hourly energy consumption data.
+
+- Electricity Consumption Forecast: [html]()
+
 
