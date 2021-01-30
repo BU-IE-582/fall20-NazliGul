@@ -21,4 +21,6 @@ Assignments during the term can be find below.<br>
 
 - Electricity Consumption Forecast: [html](Assignment3-582.html) 
 
+**Assignment 4:** A report consists of performance comparison of different models(Penalized Regression, Decision Trees, Random Forests, and Stochastic Gradient Boosting) applied in different datasets from different domains.
 
+- Model Performance Comparison:  [html]
