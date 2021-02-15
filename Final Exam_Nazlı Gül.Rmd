@@ -1,0 +1,62 @@
+---
+title: "Final Exam"
+author: "Nazlı Gül"
+date: "2/6/2021"
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+    theme: united
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+<style>
+#TOC {
+ color: 
+ font-family: Calibri;
+ background-color:
+ border-color: darkred;
+}
+#header {
+ color: darkred;
+ font-family: Calibri;
+ background-color:
+}
+body {
+ font-family: Calibri;
+ }
+ 
+</style> 
+
+# Multiple Instance Learning
+
+## 1. Introduction
+
+### About the Approach
+
+In machine learning, multiple-instance learning (MIL) is a variation on supervised learning. Instead of receiving a set of instances which are individually labeled, the learner
+receives a set of labeled bags, each containing many instances. In the simple case of multipleinstance binary classification, a bag may be labeled negative if all the instances in it are negative. On the other hand, a bag is labeled positive if there is at least one instance in it which is positive. From a collection of labeled bags, the learner tries to either 
+- induce a concept that will label individual instances correctly or 
+- learn how to label bags without inducing the concept.
+
+In traditional classification tasks, each object is represented with a feature vector and the aim is to predict the label of the object given some training data. However this approach becomes weak when the data has a certain structure. For example, in image classification, images are segmented into patches and instead of a single feature vector, each image is represented by a set of feature vectors derived from the patches. This type of applications fits well to **Multiple Instance Learning (MIL)** setting where each object is referred to as bag and each bag contains certain number of instances.
+
+### About the Dataset
+
+Musk1 describes a set of 92 molecules of which 47 are judged by human experts to be musks and the remaining 45 molecules are judged to be non-musks. The goal is to learn to predict whether new molecules will be musks or non-musks. However, the 166 features that describe these molecules depend upon the exact shape, or conformation, of the molecule.
+Because bonds can rotate, a single molecule can adopt many different shapes. To generate this data set, the low-energy conformations of the molecules were generated and then filtered to remove highly similar conformations. This left 476 conformations. Then, a feature vector was extracted that describes each conformation.
+
+### About the Task
+
+Two alternative bag-level representations for the given multiple instance learning problem will be represented. Based on the proposed bag-level representations for Musk1 dataset,  two classifiers are evaluated. Representation parameters should be tuned together with the parameters of the proposed approach. The area under the ROC curve is used based on 10-fold cross-validation on the training data as my primary performance metric in the evaluations.
+
+### About the Method
+

@@ -1,0 +1,602 @@
+---
+title: "IE582 Final Exam"
+author: "Nazlı Gül"
+date: "2/6/2021"
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+    theme: united
+    highlight: tango
+---
+
+```{r setup, include=FALSE, message=FALSE, comment=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<style>
+#TOC {
+ color: 
+ font-family: Calibri;
+ background-color:
+ border-color: darkred;
+}
+#header {
+ color: darkred;
+ font-family: Calibri;
+ background-color:
+}
+body {
+ font-family: Calibri;
+ }
+ 
+</style> 
+
+# Multiple Instance Learning
+
+### About the Approach
+
+In machine learning, multiple-instance learning (MIL) is a variation on supervised learning. Instead of receiving a set of instances which are individually labeled, the learner
+receives a set of labeled bags, each containing many instances. In the simple case of multipleinstance binary classification, a bag may be labeled negative if all the instances in it are negative. On the other hand, a bag is labeled positive if there is at least one instance in it which is positive. From a collection of labeled bags, the learner tries to either 
+- induce a concept that will label individual instances correctly or 
+- learn how to label bags without inducing the concept.
+
+In traditional classification tasks, each object is represented with a feature vector and the aim is to predict the label of the object given some training data. However this approach becomes weak when the data has a certain structure. For example, in image classification, images are segmented into patches and instead of a single feature vector, each image is represented by a set of feature vectors derived from the patches. This type of applications fits well to **Multiple Instance Learning (MIL)** setting where each object is referred to as bag and each bag contains certain number of instances.
+
+### About the Dataset
+
+Musk1 describes a set of 92 molecules of which 47 are judged by human experts to be musks and the remaining 45 molecules are judged to be non-musks. The goal is to learn to predict whether new molecules will be musks or non-musks. However, the 166 features that describe these molecules depend upon the exact shape, or conformation, of the molecule.
+Because bonds can rotate, a single molecule can adopt many different shapes. To generate this data set, the low-energy conformations of the molecules were generated and then filtered to remove highly similar conformations. This left 476 conformations. Then, a feature vector was extracted that describes each conformation.
+
+### About the Task
+
+Two alternative bag-level representations for the given multiple instance learning problem will be represented. Based on the proposed bag-level representations for Musk1 dataset, two classifiers are evaluated. Representation parameters should be tuned together with the parameters of the proposed approach. The area under the ROC curve is used based on 10-fold cross-validation on the training data as my primary performance metric in the evaluations.
+
+### About the Method
+
+First I have read the Musk1 data and assigned names for the first two columns as *Bag_Class*, and *Bag_Id*, respectively. The first column *Bag_Class* describes the bag class information while the second column includes the information of bag id. Before starting the analysis, features should be scaled in order to avoid bias due to differing ranges of the features since there will be distance calculations. As distance metric I have used **euclidean** and **manhattan** distances. First method to be applied is **k-medoids** with euclidean and manhattan distance, and the second method is **hierarchical clustering** with those distance measures. For the hierarchical, I have also checked the performance of **complete** and **single linkage**. For evaluation, the **Within Sum of Squares** for each clustering method is used. By checking the plots of these Within Sum of Squares(WSS), I have determined the abline by choosing the cluster number where the biggest drop happens. Later, I have compared these four different representations and chosen the best two ones in order to continue with further tasks in the final.
+
+```{r packages, message=FALSE, warning=FALSE, hide=TRUE}
+library(data.table)
+library(tidyverse)
+library(glmnet)
+library(caret)
+library(gbm)
+library(plyr)
+library(dplyr)
+library(rpart)
+library(randomForest)
+library(gbm)
+library(plyr)
+library(devtools)
+library(IceCast)
+library(TunePareto)
+library(ROCR)
+library(cluster)
+require(analogue)
+library(ROCR)
+library(kableExtra)
+library(yardstick)
+library(broom)
+library(tidyr)
+library(cvAUC)
+library(pROC)
+library(ranger)
+library(MLmetrics)
+library(ROSE)
+library(skimr)
+library(ape)
+library(corrplot)
+```
+
+```{r}
+data<-read.csv("Musk1.csv",header=FALSE)
+colnames(data)[1:2] <- c("Bag_Class","Bag_Id")
+str(data)
+skim((data))
+```
+
+```{r}
+head(data)
+sum(duplicated(data))
+```
+
+In the dataset there is no duplicated or null values, therefore we can continue with our investigation. The plot below shows the relationship between Bag id and Bag Class.
+
+```{r}
+data %>%
+  ggplot(., aes(x = as.factor(Bag_Class), y = as.factor (Bag_Id), color = Bag_Class)) +
+  geom_jitter() +
+  theme_minimal() +
+  theme(axis.text.y = element_text(angle = 60, vjust=0.5), legend.position = "none") +
+  labs(title = " Bag Class vs Bag Id",
+         x = "Bag Class",
+         y = "Bag Id",
+         color = "Bag Class")
+```
+
+The scaling approach is necessary for the further investigation which requires distance calculations. The feature matrix is therefore scaled as seen below.I have excluded the first two columns from this process.
+
+```{r}
+data[,c(3:168)]<-scale(data[,c(3:168)])
+wss<-function(d) {
+  sum(scale(d, scale = FALSE)^2)
+}
+```
+
+#### K-Medoids Clustering with Euclidean and Manhattan Distances
+
+The k-medoids problem is a clustering problem similar to k-means. Both the k-means and k-medoids algorithms are partitional (breaking the dataset up into groups) and attempt to minimize the distance between points labeled to be in a cluster and a point designated as the center of that cluster. In contrast to the k-means algorithm, k-medoids chooses actual data points as centers (medoids or exemplars), and thereby allows for greater interpretability of the cluster centers than in k-means, where the center of a cluster is not necessarily one of the input data points (it is the average between the points in the cluster). Furthermore, k-medoids can be used with arbitrary dissimilarity measures, whereas k-means generally requires Euclidean distance for efficient solutions. Because k-medoids minimizes a sum of pairwise dissimilarities instead of a sum of squared Euclidean distances, it is more robust to noise and outliers than k-means.The medoid of a cluster is defined as the object in the cluster whose average dissimilarity to all the objects in the cluster is minimal, that is, it is a most centrally located point in the cluster.[1]
+
+##### Euclidean Distance 
+
+Firstly, I have calculated the Euclidean distance for the dataset for the feature columns.In order to find the best k value, I have run the  model for 25 k values starting from 1 to 25. For each k value, I have also presented the Within Sum of Squares which will be used to choose the most appropriate k value among 25 alternatives. As it can be seen from the output, the drop after k=4 becomes lower. Therefore I have chosen the **k=4** for the maximum drop with lower parameters. After this point, the data points become smoother. For a better visualization the plot and the line for k=4 can be seen below.
+
+```{r}
+k=c(1:25)
+euclidean_dist=data.frame(0,ncol=2)
+colnames(euclidean_dist)<-list("k value","   WSS")
+
+for(i in 1:length(k)){
+  temp<-0
+  temp2<-0
+  result<-pam(data[,-c(1:2)],k[i],metric="euclidean")
+  spl <- split(data[,-c(1:2)], result$clustering)
+  temp<-sum(sapply(spl, wss))
+  temp2<-c(k[i],temp)
+  euclidean_dist<-rbind(euclidean_dist,temp2)
+}
+
+euclidean_dist<-euclidean_dist[-1,]
+euclidean_dist %>% kable(col.names = c("K value for the Euclidean Distance","Within Sum of Squares"))%>%
+kable_minimal(full_width = F)
+
+```
+
+```{r}
+plot.new()
+plot(euclidean_dist,type="b")+
+abline(v=4,col="orange")
+```
+Pam function can be used for the best result with Euclidean distance for k=4 which equals to **45321.88**.
+
+```{r}
+result<-pam(data[,-c(1:2)],4,metric="euclidean")
+spl <- split(data[,-c(1:2)], result$clustering)
+k_euclidean_dist_best<-sum(sapply(spl, wss))
+k_euclidean_dist_best
+```
+
+##### Manhattan Distance
+
+Secondly, I have calculated the Manhattan (so-called city block) distance for the dataset for the feature columns.In order to find the best k value, I have run the  model for 25 k values starting from 1 to 25. For each k value, I have also presented the Within Sum of Squares which will be used to choose the most appropriate k value among 25 alternatives. As it can be seen from the output, the drop after k=4 becomes lower. Therefore I have chosen the **k=3** for the maximum drop with lower parameters. After this point, the data points become smoother. For a better visualization the plot and the line for k=3 can be seen below.
+
+```{r}
+k=c(1:25)
+manhattan_dist=data.frame(0,ncol=2)
+colnames(manhattan_dist)<-list("k value","   WSS")
+
+for(i in 1:length(k)){
+  temp<-0
+  temp2<-0
+  result<-pam(data[,-c(1:2)],k[i],metric="manhattan")
+  spl <- split(data[,-c(1:2)], result$clustering)
+  temp<-sum(sapply(spl, wss))
+  temp2<-c(k[i],temp)
+  manhattan_dist<-rbind(manhattan_dist,temp2)
+}
+
+manhattan_dist<-manhattan_dist[-1,]
+manhattan_dist %>% kable(col.names = c("K value for the Euclidean Distance","Within Sum of Squares"))%>%
+kable_minimal(full_width = F)
+```
+
+```{r}
+plot(manhattan_dist,type="b")+
+abline(v=3,col="purple")
+```
+
+```{r}
+result<-pam(data[,-c(1:2)],3,metric="manhattan")
+spl <- split(data[,-c(1:2)], result$clustering)
+k_manhattan_dist_best<-sum(sapply(spl, wss))
+k_manhattan_dist_best
+```
+Pam function can be used for the best result with Manhattan distance for k=3 which equals to **48814.96**.
+
+#### Hierarchical Clustering with Euclidean and Manhattan Distances
+
+Hierarchical clustering treats each data point as a singleton cluster, and then successively merges clusters until all points have been merged into a single remaining cluster. A hierarchical clustering is often represented as a dendrogram. In complete-link (or complete linkage) hierarchical clustering, we merge in each step the two clusters whose merger has the smallest diameter (or: the two clusters with the smallest maximum pairwise distance).In single-link (or single linkage) hierarchical clustering, we merge in each step the two clusters whose two closest members have the smallest distance (or: the two clusters with the smallest minimum pairwise distance).[2]
+
+In this part, I continue with the hierarchical clustering with Euclidean and Manhattan distances for both single and complete linkage alternatives. Similar steps are conducted in this part for the distance calculations.Again, I have run 25 k values starting from 1 to 25. For each k value, I have also presented the Within Sum of Squares which will be used to choose the most appropriate k value among 25 alternatives. 
+
+##### Euclidean Distance Single Linkage
+
+```{r}
+distance_euclidean<-dist(data[,-c(1:2)],method = "euclidean")
+hclustering_euclidean<-hclust(distance_euclidean,method="single") 
+hclustering_dat_e1<-data.frame(0,ncol=2)
+colnames(hclustering_dat_e1)<-list("k value","  WSS")
+k=c(1:25)
+for(i in 1:length(k)){
+  temp<-0
+  temp2<-0
+  cl <- cutree(hclustering_euclidean, k[i])
+  spl <- split(data[,-c(1:2)], cl)
+  temp<-sum(sapply(spl, wss))
+  temp2<-c(k[i],temp)
+  hclustering_dat_e1<-rbind(hclustering_dat_e1,temp2)
+}
+
+hclustering_dat_e1<-hclustering_dat_e1[-1,]
+hclustering_dat_e1 %>% kable(col.names = c("K value for the Euclidean Distance","Within Sum of Squares"))%>%
+kable_minimal(full_width = F)
+```
+
+```{r}
+plot(hclustering_dat_e1,type="b") + abline(v=16,col="darkgreen")
+```
+
+```{r}
+cl <- cutree(hclustering_euclidean, 16)
+spl <- split(data[,-c(1:2)], cl)
+hclustering_euclidean_singe_best<-sum(sapply(spl, wss))
+hclustering_euclidean_singe_best
+```
+As it can be seen from the output, there is a significant drop after k=15 therefore I have decided to take k as 16 in this part. After this point, the data points become smoother, and the differences between different k values become negligible. For a better visualization, the plot and the line for k=16 can be seen below. The best result with Euclidean distance for **k=16** in single linkage equals to **66095.25**. 
+
+#### Euclidean Distance Complete Linkage
+
+```{r}
+
+hclustering_euclidean<-hclust(distance_euclidean,method="complete") 
+hclustering_dat_e2<-data.frame(0,ncol=2)
+colnames(hclustering_dat_e2)<-list("k value","   WSS")
+k=c(1:25)
+for(i in 1:length(k)){
+  temp<-0
+  temp2<-0
+  cl <- cutree(hclustering_euclidean, k[i])
+  spl <- split(data[,-c(1:2)], cl)
+  temp<-sum(sapply(spl, wss))
+  temp2<-c(k[i],temp)
+  hclustering_dat_e2<-rbind(hclustering_dat_e2,temp2)
+}
+
+hclustering_dat_e2<-hclustering_dat_e2[-1,]
+hclustering_dat_e2 %>% kable(col.names = c("K value for the Euclidean Distance","Within Sum of Squares"))%>%
+kable_minimal(full_width = F)
+```
+
+```{r}
+plot(hclustering_dat_e2,type="b")+abline(v=5,col="red")
+```
+```{r}
+cl <- cutree(hclustering_euclidean, 5)
+spl <- split(data[,-c(1:2)], cl)
+hclustering_euclidean_complete_best<-sum(sapply(spl, wss))
+hclustering_euclidean_complete_best
+```
+The best result with Euclidean distance for **k=5** in complete linkage equals to **46139.41**. 
+
+##### Manhattan Distance Single Linkage
+
+```{r}
+distance_manhattan<-dist(data[,-c(1:2)],method = "manhattan")
+hclustering_manhattan<-hclust(distance_manhattan,method="single") 
+hclustering_dat_m1<-data.frame(0,ncol=2)
+colnames(hclustering_dat_m1)<-list("k value","   WSS")
+k=c(1:25)
+for(i in 1:length(k)){
+  temp<-0
+  temp2<-0
+  cl <- cutree(hclustering_manhattan, k[i])
+  spl <- split(data[,-c(1:2)], cl)
+  temp<-sum(sapply(spl, wss))
+  temp2<-c(k[i],temp)
+  hclustering_dat_m1<-rbind(hclustering_dat_m1,temp2)
+}
+
+
+hclustering_dat_m1<-hclustering_dat_m1[-1,]
+hclustering_dat_m1 %>% kable(col.names = c("K value for the Euclidean Distance","Within Sum of Squares"))%>%
+kable_minimal(full_width = F)
+```
+
+```{r}
+plot(hclustering_dat_m1,type="b")+abline(v=16,col="blue")
+```
+As it can be seen from the output, there is a significant drop after k=15 therefore I have decided to take k as 16 in this part. After this point, the data points become smoother, and the differences between different k values become negligible. For a better visualization, the plot and the line for k=16 can be seen below.There is also a huge drop after 21 however I have assumed that there is no need to use such a large number for k. The best result with Manhattan distance for **k=16** in single linkage equals to **61771.55**. 
+
+```{r}
+cl <- cutree(hclustering_manhattan, 16)
+spl <- split(data[,-c(1:2)], cl)
+hclustering_man_single_best<-sum(sapply(spl, wss))
+hclustering_man_single_best
+```
+
+##### Manhattan Distance Complete Linkage
+
+```{r}
+hclustering_manhattan<-hclust(distance_manhattan,method="complete") 
+hclustering_dat_m2<-data.frame(0,ncol=2)
+colnames(hclustering_dat_m2)<-list("k value","   WSS")
+k=c(1:25)
+for(i in 1:length(k)){
+  temp<-0
+  temp2<-0
+  cl <- cutree(hclustering_manhattan, k[i])
+  spl <- split(data[,-c(1:2)], cl)
+  temp<-sum(sapply(spl, wss))
+  temp2<-c(k[i],temp)
+  hclustering_dat_m2<-rbind(hclustering_dat_m2,temp2)
+}
+
+hclustering_dat_m2<-hclustering_dat_m2[-1,]
+hclustering_dat_m2 %>% kable(col.names = c("K value for the Euclidean Distance","Within Sum of Squares"))%>%
+kable_minimal(full_width = F)
+```
+```{r}
+plot(hclustering_dat_m2,type="b")+abline(v=4,col="yellow")
+```
+
+```{r}
+cl <- cutree(hclustering_manhattan, 4)
+spl <- split(data[,-c(1:2)], cl)
+hclustering_man_complete_best<-sum(sapply(spl, wss))
+hclustering_man_complete_best
+```
+As it can be seen from the output, after **k=4**, the data points become smoother, and the differences between different k values become negligible. For a better visualization, the plot and the line for k=4 can be seen above. The best result with Manhattan distance for k=4 in complete linkage equals to **46091.32**. 
+
+```{r}
+hclustering_man_single_best
+hclustering_man_complete_best
+hclustering_euclidean_complete_best
+hclustering_euclidean_singe_best
+k_manhattan_dist_best
+k_euclidean_dist_best
+```
+
+Based on the results, 
+- **hierarchical clustering with complete linkage manhattan distance measure with k=4**, and 
+- **hierarcical clustering with complete linkage euclidean distance measure with k=5** are the best two representations. 
+
+The hierarchical representation of these two best representations can be seen below.
+
+```{r}
+colors = c("darkred", "darkblue", "darkgreen", "black")
+clus4 = cutree(hclustering_manhattan, 4)
+plot(as.phylo(hclustering_manhattan), type = "fan", tip.color = colors[clus4],
+     label.offset = 1, cex = 0.7)
+```
+
+```{r}
+colors = c("darkred", "darkblue", "darkgreen", "black", "purple")
+clus5 = cutree(hclustering_euclidean, 5)
+plot(as.phylo(hclustering_euclidean), type = "fan", tip.color = colors[clus5],
+     label.offset = 1, cex = 0.7)
+```
+
+Later, I have calculated first the medioids of these best representations and then calculated the related distances of each data value from the medioids. By averaging these to groups, I have come up with two new feature data, *feature1_2*, and *feature2_2* respectively.The structure of these datasets and relationship between features can be seen below.
+
+```{r}
+final_model_1<- cutree( (hclust(distance_manhattan,method="complete")),4)
+spl <- split(data[,-c(1:2)], final_model_1)
+medioids_1<-sapply(spl,colMeans)
+medioids_1<-t(medioids_1)
+features<-NULL
+for(i in 1:nrow(data)){
+  temp3<-NULL
+  temp4<-NULL
+  temp5<-NULL
+  for(j in 1:4)
+  {
+    temp3<-rbind(data[i,-c(1:2)],medioids_1[j,])
+    temp4<-dist(temp3,method="manhattan")
+    temp5<-cbind(temp5,temp4)
+  }
+    features<-rbind(features,temp5)
+  }
+features<-cbind(data[,c(1:2)],features)
+colnames(features)[c(3:6)]<-c("cluster1","cluster2","cluster3","cluster4")
+features<-data.table(features)
+z_1<-aggregate(features, list(features$Bag_Id), mean)
+features1_2<-z_1[,c(2,4:7)]
+features1_2[,1]<-as.factor(features1_2[,1])
+features1_2[,-1]<-scale(features1_2[,-1])
+```
+
+```{r}
+head(features1_2)
+str(features1_2)
+features1_2_cor<-cor(features1_2[,-1])
+corrplot(features1_2_cor, method="number")
+```
+There is a negative correlation between cluster 2 and cluster 4 in features1_2.
+
+```{r}
+final_model_2<- cutree( (hclust(distance_euclidean,method="complete")),5)
+spl <- split(data[,-c(1:2)], final_model_2)
+medioids_2<-sapply(spl,colMeans)
+medioids_2<-t(medioids_2)
+features<-NULL
+for(i in 1:nrow(data)){
+  temp3<-NULL
+  temp4<-NULL
+  temp5<-NULL
+  for(j in 1:5)
+  {
+    temp3<-rbind(data[i,-c(1:2)],medioids_2[j,])
+    temp4<-dist(temp3,method="euclidean")
+    temp5<-cbind(temp5,temp4)
+  }
+    features<-rbind(features,temp5)
+  }
+features<-cbind(data[,c(1:2)],features)
+colnames(features)[c(3:7)]<-c("cluster1","cluster2","cluster3","cluster4", "cluster5")
+features<-data.table(features)
+z_2<-aggregate(features, list(features$Bag_Id), mean)
+features2_2<-z_2[,c(2,4:8)]
+features2_2[,1]<-as.factor(features2_2[,1])
+features2_2[,-1]<-scale(features2_2[,-1])
+```
+
+```{r}
+head(features2_2)
+str(features2_2)
+features2_2_cor<-cor(features2_2[,-1])
+corrplot(features2_2_cor, method="number")
+```
+As features1_2 data, also in features2_2 there is a negative correlation between cluster 2 and cluster 4. Also cluster 3 and cluster 4 are highly correletad.
+
+### Decision Tree Approach for the Two Representation 
+
+Decision Trees are a type of *Supervised Machine Learning* where the data is continuously split according to a certain parameter. The tree can be explained by two entities, namely decision nodes and leaves. The leaves are the decisions or the final outcomes. And the decision nodes are where the data is split. Although a decision tree does not require scaling of data, I have standardized the data at the beginning just in case other approaches would be required (such as Penalized Regression, etc.) Decision tree approach does not require much effort and it is greatly intuitive. Another advantage of decision trees is that, once the variables have been created, there is less data cleaning required. Cases of missing values and outliers have less significance on the decision tree’s data. A small change in the data can cause a large change in the structure of the decision tree causing instability, however in Musk data I have assumed that the change occurence is less frequently comparing to any other datasets. Therefore, the first model in my final exam belongs to decision tree approach.
+
+Since I have created two bag-level representation, I have followed the same steps for both of them. The models have been tuned manually for minbucket values: 1, 5, and 10. Since I have 2 representations, I have replied the same procedure for six times. 
+
+#### Representation 1
+
+First, I have converted the Bag_Class values into A, and B in order to prevent the some errors I have faced.Later, I have assigned the different cp values, and conducted the models.
+
+```{r}
+features1_2$Bag_Class = ifelse(features1_2$Bag_Class == 1, "A", "B")
+features2_2$Bag_Class = ifelse(features2_2$Bag_Class == 1, "A", "B")
+```
+
+```{r}
+myGridDt2 <- expand.grid(cp=c(0.005,0.01,0.003,0.007,0.1,0.03))
+myControlClass2<-trainControl(method="cv", number=10,  allowParallel=TRUE, classProbs = TRUE)
+set.seed(123)
+decision_tree_model_1 <- train(x=as.matrix(features1_2[,-1]),y=as.matrix(features1_2$Bag_Class), method ="rpart", tuneGrid = myGridDt2,trControl=myControlClass2, control = rpart.control(minbucket=c(1)))
+decision_tree_model_1
+```
+
+```{r}
+set.seed(123)
+decision_tree_model_2 <- train(x=as.matrix(features1_2[,-1]),y=as.matrix(features1_2$Bag_Class),method ="rpart",tuneGrid = myGridDt2,trControl=myControlClass2, control = rpart.control(minbucket=c(5)))
+decision_tree_model_2
+```
+
+```{r}
+set.seed(123)
+decision_tree_model_3 <- train(x=as.matrix(features1_2[,-1]),y=as.matrix(features1_2$Bag_Class),method ="rpart",tuneGrid = myGridDt2,trControl=myControlClass2, control = rpart.control(minbucket=c(10)))
+decision_tree_model_3
+```
+
+The best accuracy is obtained from **Decision Tree Model 2 for Representation 1** with the tuned parameters below according to the outputs above:
+
+- cp=0.1
+- minbucket=5
+
+The accuracy of this model equals to **67.25%**. 
+
+#### Representation 2
+
+```{r}
+myGridDt2 <- expand.grid(cp=c(0.005,0.01,0.003,0.007,0.1,0.03))
+myControlClass2<-trainControl(method="cv",number=10,  allowParallel=TRUE, classProbs = TRUE)
+set.seed(123)
+decision_tree_model_4 <- train(x=as.matrix(features2_2[,-1]),y=as.matrix(features2_2$Bag_Class),method ="rpart",tuneGrid = myGridDt2,trControl=myControlClass2, control = rpart.control(minbucket=c(1)))
+decision_tree_model_4
+```
+
+```{r}
+set.seed(123)
+decision_tree_model_5 <- train(x=as.matrix(features2_2[,-1]),y=as.matrix(features2_2$Bag_Class),method ="rpart",tuneGrid = myGridDt2,trControl=myControlClass2, control = rpart.control(minbucket=c(5)))
+decision_tree_model_5
+```
+
+```{r}
+set.seed(123)
+decision_tree_model_6 <- train(x=as.matrix(features2_2[,-1]),y=as.matrix(features2_2$Bag_Class),method ="rpart",tuneGrid = myGridDt2,trControl=myControlClass2, control = rpart.control(minbucket=c(10)))
+decision_tree_model_6
+```
+
+The best accuracy is obtained from **Decision Tree Model 4 for Representation 2** with the tuned parameters below according to the outputs above:
+
+- cp=0.1
+- minbucket=5
+
+The accuracy of this model equals to **67.28%**. 
+
+### Random Forest Approach for the Two Representation 
+
+Random Forest is a powerful algorithm in *Supervise Machine Learning*. It is based on the Ensemble Learning technique. The advantages of random forest approach can be listed as following. It creates as many trees on the subset of the data and combines the output of all the trees. In this way it reduces overfitting problem in decision trees and also reduces the variance and therefore improves the accuracy.Random Forest can be used to solve both classification as well as regression problems.In this problem the classification type is used. Random Forest can automatically handle missing values. No feature scaling (standardization and normalization) required in case of Random Forest as it uses rule based approach instead of distance calculation.Although this is the case, at the beginning scaling is conducted. Non linear parameters don't affect the performance of a Random Forest unlike curve based algorithms. So, if there is high non-linearity between the independent variables, Random Forest may outperform as compared to other curve based algorithms. Random Forest is usually robust to outliers and can handle them automatically. Due to thjese advantages, I have chosen this approach as my second classifier in this final exam.
+
+#### Representation 1
+
+The Random Forest model have been created for the representation 1. At the comparison part, all models will be evaluated. 
+
+```{r}
+myGridForest2 <- expand.grid(mtry = c(2,3) ,min.node.size=5, splitrule = "gini")
+set.seed(123)
+random_forest_model_1 <- train(x=as.matrix(features1_2[,-1]),y=as.matrix(features1_2$Bag_Class), method="ranger", tuneGrid= myGridForest2, trControl= myControlClass2)
+```
+
+#### Representation 2
+
+The Random Forest model have been created for the representation 2. At the comparison part, all models will be evaluated.
+
+```{r}
+myGridForest2 <- expand.grid(mtry = c(2,3,4) ,min.node.size=5, splitrule = "gini")
+set.seed(123)
+random_forest_model_2 <- train(x=as.matrix(features2_2[,-1]),y=as.matrix(features2_2$Bag_Class), method="ranger", tuneGrid= myGridForest2, trControl= myControlClass2)
+```
+
+### Comparison
+
+Since it was manually tuned, 3 Decision Tree models were created for each representation which makes a total of 6 decision trees. In addition, Random Forest method was used as a second classifier for those representations. When we examine these 8 models in the terms of accuracy, the following boxplot is obtained. As seen in the boxplot, the model with the highest accuracy belongs to the Random Forest Method created for the 2. bag-level representation. This method is followed by the first Decision Tree model applied to the 2, bag-level representation, namely model 4. 
+
+```{r}
+model_list <- list(DT1=decision_tree_model_1, DT2= decision_tree_model_2, DT3= decision_tree_model_3, DT4= decision_tree_model_4, DT5= decision_tree_model_5, DT6= decision_tree_model_6, RF1= random_forest_model_1, RF2= random_forest_model_2)
+resamp <- resamples(model_list)
+bwplot(resamp,metric ="Accuracy")
+```
+
+```{r}
+pred1=predict(decision_tree_model_1$finalModel)
+pred2=predict(decision_tree_model_2$finalModel)
+pred3=predict(decision_tree_model_3$finalModel)
+pred4=predict(decision_tree_model_4$finalModel)
+pred5=predict(decision_tree_model_5$finalModel)
+pred6=predict(decision_tree_model_6$finalModel)
+pred7=predict(random_forest_model_1$finalModel, data=features1_2[,-1])
+pred8=predict(random_forest_model_2$finalModel, data=features2_2[,-1])
+auc1=auc(features1_2$Bag_Class,pred1[,1])
+auc2=auc(features1_2$Bag_Class,pred2[,1])
+auc3=auc(features1_2$Bag_Class,pred3[,1])
+auc4=auc(features2_2$Bag_Class,pred4[,1])
+auc5=auc(features2_2$Bag_Class,pred5[,1])
+auc6=auc(features2_2$Bag_Class,pred6[,1])
+auc7=auc(features1_2$Bag_Class,pred7$predictions[,1])
+auc8=auc(features2_2$Bag_Class,pred8$predictions[,1])
+roc.curve(features1_2$Bag_Class,pred1[,1], add.roc = FALSE, col="red")
+roc.curve(features1_2$Bag_Class,pred2[,1], add.roc = TRUE, col="purple")
+roc.curve(features1_2$Bag_Class,pred3[,1], add.roc = TRUE, col="blue")
+roc.curve(features2_2$Bag_Class,pred4[,1], add.roc = TRUE, col="darkgreen")
+roc.curve(features2_2$Bag_Class,pred5[,1], add.roc = TRUE, col="orange")
+roc.curve(features2_2$Bag_Class,pred6[,1], add.roc = TRUE, col="yellow")
+roc.curve(features1_2$Bag_Class,pred7$predictions[,1], add.roc = TRUE, col="pink")
+roc.curve(features2_2$Bag_Class,pred8$predictions[,1], add.roc = TRUE, col="black")
+```
+```{r}
+Performance=data.table(DT1=auc1, DT2=auc2, FT3=auc3, DT4=auc4, DT5=auc5, DT6=auc6, RF1=auc7, RF2=auc8)
+Performance
+```
+Since the evaluation in this task should be made by using ROC curve(AUC) based on 10-fold cross-validation, areas under these curves are calculated as above. It can be said that Random Forest approaches present an area of 1 under this curve which means there is some **overfiting** in these models. Except these overfitted models, the best approach belongs to the decision tree model for 2. bag-level representation, namely model 4, with an area of 99.6%. We can conclude that 2. bag-level representation performs better than the 1. bag-level representation. In other words, using *hierarchical clustering with complete linkage euclidean distance with k=5* seems better in practise than using *hierarchical clustering with complete linkage manhattan distance with k=4*.
+
+## References
+
+[1](https://en.wikipedia.org/wiki/K-medoids)
+
+[2](https://archive.ics.uci.edu/ml/datasets/Musk+(Version+1))
+
+[3](https://uc-r.github.io/kmeans_clustering)
+
+[4](https://pypi.org/project/mil/)
+
+[5](https://app.dimensions.ai/details/publication/pub.1106085196)
