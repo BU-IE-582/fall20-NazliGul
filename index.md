@@ -27,5 +27,5 @@ Assignments during the term can be find below.<br>
 
 **Project:** A report consists of imbalance classification problem where some models are tried in order to improve the performance measure.
 
-- Imbalance Classification Problem Report: [html]() 
+- Imbalance Classification Problem Report: [html](IE582_ProjectReport.html) 
 - Imbalance Classification Problem Codes: [html]()
